@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Tracker</title>
+    <link rel="stylesheet" href="src/popup/popup.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Job Tracker</h1>
+            <div class="status" id="status">Ready</div>
+        </header>
+
+        <div class="tabs">
+            <button class="tab-button active" data-tab="extract">Extract</button>
+            <button class="tab-button" data-tab="history">History</button>
+            <button class="tab-button" data-tab="settings">Settings</button>
+        </div>
+
+        <!-- Extract Tab -->
+        <div class="tab-content active" id="extract-tab">
+            <div class="extraction-section">
+                <button id="extract-btn" class="primary-btn">
+                    <span class="btn-icon">🔍</span>
+                    Extract Job Data
+                </button>
+                <div class="extraction-status" id="extraction-status"></div>
+            </div>
+
+            <div class="job-preview" id="job-preview" style="display: none;">
+                <h3>Extracted Job Data</h3>
+                <form id="job-form">
+                    <div class="form-group">
+                        <label for="company-name">Company Name</label>
+                        <input type="text" id="company-name" name="companyName" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="role">Role</label>
+                        <input type="text" id="role" name="role" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="salary">Salary</label>
+                        <input type="text" id="salary" name="salary" placeholder="e.g., $80,000 - $100,000">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="application-status">Application Status</label>
+                        <select id="application-status" name="applicationStatus">
+                            <option value="Not Applied">Not Applied</option>
+                            <option value="Applied">Applied</option>
+                            <option value="Interview">Interview</option>
+                            <option value="Rejected">Rejected</option>
+                            <option value="Offer">Offer</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="date-submitted">Date Submitted</label>
+                        <input type="date" id="date-submitted" name="dateSubmitted">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="job-url">Job URL</label>
+                        <input type="url" id="job-url" name="linkToJobReq" readonly>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="rejection-reason">Rejection Reason</label>
+                        <input type="text" id="rejection-reason" name="rejectionReason" placeholder="If applicable">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="notes">Notes</label>
+                        <textarea id="notes" name="notes" rows="3" placeholder="Additional notes..."></textarea>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" id="save-local-btn" class="secondary-btn">Save Locally</button>
+                        <button type="button" id="save-sheets-btn" class="primary-btn">Save to Sheets</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- History Tab -->
+        <div class="tab-content" id="history-tab">
+            <div class="history-header">
+                <h3>Saved Jobs</h3>
+                <button id="clear-history-btn" class="danger-btn">Clear All</button>
+            </div>
+            <div class="job-list" id="job-list">
+                <!-- Jobs will be populated here -->
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div class="tab-content" id="settings-tab">
+            <div class="settings-section">
+                <h3>Google Sheets Configuration</h3>
+
+                <div class="form-group">
+                    <label for="spreadsheet-id">Spreadsheet ID</label>
+                    <input type="text" id="spreadsheet-id" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms">
+                    <small>Found in the Google Sheets URL</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="sheet-name">Sheet Name</label>
+                    <input type="text" id="sheet-name" placeholder="Job Applications" value="Job Applications">
+                </div>
+
+                <div class="form-actions">
+                    <button id="test-connection-btn" class="secondary-btn">Test Connection</button>
+                    <button id="create-headers-btn" class="primary-btn">Create Headers</button>
+                    <button id="save-settings-btn" class="primary-btn">Save Settings</button>
+                </div>
+
+                <div class="settings-status" id="settings-status"></div>
+
+                <div class="auth-section">
+                    <h4>Authentication</h4>
+                    <button id="auth-btn" class="secondary-btn">Authorize Google Sheets</button>
+                    <button id="revoke-auth-btn" class="danger-btn">Revoke Access</button>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3>Parser Information</h3>
+                <div id="parser-info">
+                    <p><strong>Supported Sites:</strong></p>
+                    <ul id="supported-sites"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="popup-standalone.js"></script>
+</body>
+</html>

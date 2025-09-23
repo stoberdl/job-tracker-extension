@@ -1,0 +1,93 @@
+import { BaseParser } from '../base/BaseParser';
+import { JobData } from '../../types/JobData';
+
+export class LinkedInParser extends BaseParser {
+  siteName = 'LinkedIn';
+  urlPatterns = ['linkedin.com/jobs/view', 'linkedin.com/jobs/collections'];
+
+  parse(): JobData {
+    const jobData = this.getDefaultJobData();
+
+    jobData.companyName = this.extractCompanyName();
+    jobData.role = this.extractJobTitle();
+    jobData.salary = this.extractSalary();
+    jobData.notes = `Extracted from ${this.siteName}`;
+
+    return jobData;
+  }
+
+  private extractCompanyName(): string {
+    const selectors = [
+      '.topcard__org-name-link',
+      '.job-details-jobs-unified-top-card__company-name',
+      'a[data-control-name="job_details_topcard_company_url"]',
+      '.topcard__flavor--black-link',
+      '.jobs-unified-top-card__company-name',
+      '.job-details-jobs-unified-top-card__company-name a'
+    ];
+
+    let companyName = this.extractBySelectors(selectors);
+
+    if (!companyName) {
+      const companyLink = document.querySelector('a[href*="/company/"]');
+      if (companyLink) {
+        companyName = companyLink.textContent?.trim() || '';
+      }
+    }
+
+    return this.cleanText(companyName);
+  }
+
+  private extractJobTitle(): string {
+    const selectors = [
+      '.topcard__title',
+      '.job-details-jobs-unified-top-card__job-title',
+      'h1[data-test-id="job-title"]',
+      '.jobs-unified-top-card__job-title',
+      '.job-details-jobs-unified-top-card__job-title h1'
+    ];
+
+    return this.cleanText(this.extractBySelectors(selectors));
+  }
+
+  private extractSalary(): string {
+    const selectors = [
+      '[data-test-id="job-salary-info"]',
+      '.job-details-preferences-and-skills__salary',
+      '.jobs-description__salary',
+      '.job-criteria__text:contains("$")'
+    ];
+
+    let salary = this.extractBySelectors(selectors);
+
+    if (!salary) {
+      const jobCriteriaList = document.querySelectorAll('.job-criteria__text');
+      for (let i = 0; i < jobCriteriaList.length; i++) {
+        const criteria = jobCriteriaList[i];
+        if (!criteria) continue;
+        const text = criteria.textContent || '';
+        const extractedSalary = this.extractSalaryFromText(text);
+        if (extractedSalary) {
+          salary = extractedSalary;
+          break;
+        }
+      }
+    }
+
+    if (!salary) {
+      const bodyText = document.body.textContent || '';
+      salary = this.extractSalaryFromText(bodyText);
+    }
+
+    return this.cleanText(salary);
+  }
+
+  isValidJobPage(): boolean {
+    const url = window.location.href;
+    const hasJobUrl = this.urlPatterns.some(pattern => url.includes(pattern));
+    const hasJobTitle = document.querySelector('.topcard__title, .job-details-jobs-unified-top-card__job-title') !== null;
+    const hasCompany = document.querySelector('.topcard__org-name-link, .job-details-jobs-unified-top-card__company-name') !== null;
+
+    return hasJobUrl && (hasJobTitle || hasCompany);
+  }
+}
