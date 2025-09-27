@@ -1,5 +1,4 @@
-import { JobData, MessageRequest, MessageResponse } from './types/JobData';
-
+// Standalone background script without ES6 modules
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Job Tracker Extension installed');
 
@@ -21,14 +20,14 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-chrome.runtime.onMessage.addListener((request: MessageRequest, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'saveJob') {
     saveJobApplication(request.data)
-      .then(() => sendResponse({ success: true } as MessageResponse))
+      .then(() => sendResponse({ success: true }))
       .catch((error) => sendResponse({
         success: false,
         error: error.message
-      } as MessageResponse));
+      }));
     return true;
   }
 
@@ -37,18 +36,18 @@ chrome.runtime.onMessage.addListener((request: MessageRequest, sender, sendRespo
       .then((jobs) => sendResponse({
         success: true,
         data: jobs
-      } as MessageResponse))
+      }))
       .catch((error) => sendResponse({
         success: false,
         error: error.message
-      } as MessageResponse));
+      }));
     return true;
   }
 
   return false;
 });
 
-async function saveJobApplication(jobData: JobData): Promise<void> {
+async function saveJobApplication(jobData) {
   try {
     const result = await chrome.storage.local.get(['jobs']);
     const jobs = result.jobs || [];
@@ -70,7 +69,7 @@ async function saveJobApplication(jobData: JobData): Promise<void> {
   }
 }
 
-async function getStoredJobs(): Promise<any[]> {
+async function getStoredJobs() {
   try {
     const result = await chrome.storage.local.get(['jobs']);
     return result.jobs || [];

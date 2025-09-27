@@ -27,10 +27,13 @@
                     Extract Job Data
                 </button>
                 <div class="extraction-status" id="extraction-status"></div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666; text-align: center;">
+                    Extract job details from this page and save to Google Sheets
+                </p>
             </div>
 
             <div class="job-preview" id="job-preview" style="display: none;">
-                <h3>Extracted Job Data</h3>
+                <h3>Job Data Ready</h3>
                 <form id="job-form">
                     <div class="form-group">
                         <label for="company-name">Company Name</label>
@@ -79,8 +82,7 @@
                     </div>
 
                     <div class="form-actions">
-                        <button type="button" id="save-local-btn" class="secondary-btn">Save Locally</button>
-                        <button type="button" id="save-sheets-btn" class="primary-btn">Save to Sheets</button>
+                        <button type="button" id="track-job-btn" class="primary-btn">Track Job</button>
                     </div>
                 </form>
             </div>
@@ -89,8 +91,8 @@
         <!-- History Tab -->
         <div class="tab-content" id="history-tab">
             <div class="history-header">
-                <h3>Saved Jobs</h3>
-                <button id="clear-history-btn" class="danger-btn">Clear All</button>
+                <h3>Tracked Jobs</h3>
+                <button id="refresh-history-btn" class="secondary-btn">Refresh</button>
             </div>
             <div class="job-list" id="job-list">
                 <!-- Jobs will be populated here -->
@@ -102,10 +104,28 @@
             <div class="settings-section">
                 <h3>Google Sheets Configuration</h3>
 
+                <div class="setup-notice" style="background: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px; padding: 12px; margin-bottom: 16px;">
+                    <strong>🔑 Service Account Setup Required</strong><br>
+                    <small>You need to provide a Google Service Account JSON key file for authentication. This is more reliable than OAuth for browser extensions.</small>
+                </div>
+
+                <div class="auth-section">
+                    <h4>Service Account Authentication</h4>
+                    <div class="form-group">
+                        <label for="service-account-json">Service Account JSON Key</label>
+                        <textarea id="service-account-json" rows="8" placeholder="Paste your service account JSON key here..."></textarea>
+                        <small>Download this from Google Cloud Console > IAM & Admin > Service Accounts</small>
+                    </div>
+                    <div class="form-actions">
+                        <button id="save-service-account-btn" class="primary-btn">Save Service Account</button>
+                        <button id="clear-service-account-btn" class="danger-btn">Clear Configuration</button>
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <label for="spreadsheet-id">Spreadsheet ID</label>
-                    <input type="text" id="spreadsheet-id" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms">
-                    <small>Found in the Google Sheets URL</small>
+                    <input type="text" id="spreadsheet-id" placeholder="1KWHpoyrJjPhYn5LsefAp9i71sPNFIwYD9WggvuMFX40">
+                    <small>Found in the Google Sheets URL (the long string between /d/ and /edit)</small>
                 </div>
 
                 <div class="form-group">
@@ -120,12 +140,6 @@
                 </div>
 
                 <div class="settings-status" id="settings-status"></div>
-
-                <div class="auth-section">
-                    <h4>Authentication</h4>
-                    <button id="auth-btn" class="secondary-btn">Authorize Google Sheets</button>
-                    <button id="revoke-auth-btn" class="danger-btn">Revoke Access</button>
-                </div>
             </div>
 
             <div class="settings-section">

@@ -23,15 +23,14 @@ class PopupController {
 
   private setupEventListeners(): void {
     document.getElementById('extract-btn')?.addEventListener('click', () => this.extractJobData());
-    document.getElementById('save-local-btn')?.addEventListener('click', () => this.saveLocally());
-    document.getElementById('save-sheets-btn')?.addEventListener('click', () => this.saveToSheets());
-    document.getElementById('clear-history-btn')?.addEventListener('click', () => this.clearHistory());
+    document.getElementById('track-job-btn')?.addEventListener('click', () => this.trackJob());
+    document.getElementById('refresh-history-btn')?.addEventListener('click', () => this.loadJobHistory());
 
     document.getElementById('save-settings-btn')?.addEventListener('click', () => this.saveSettings());
     document.getElementById('test-connection-btn')?.addEventListener('click', () => this.testConnection());
     document.getElementById('create-headers-btn')?.addEventListener('click', () => this.createHeaders());
-    document.getElementById('auth-btn')?.addEventListener('click', () => this.authorize());
-    document.getElementById('revoke-auth-btn')?.addEventListener('click', () => this.revokeAuth());
+    document.getElementById('save-service-account-btn')?.addEventListener('click', () => this.saveServiceAccount());
+    document.getElementById('clear-service-account-btn')?.addEventListener('click', () => this.clearServiceAccount());
 
     document.getElementById('job-form')?.addEventListener('input', () => this.updateJobDataFromForm());
   }
@@ -121,39 +120,16 @@ class PopupController {
     preview.style.display = 'block';
   }
 
-  private async saveLocally(): Promise<void> {
+  private async trackJob(): Promise<void> {
     if (!this.currentJobData) return;
 
-    try {
-      const result = await chrome.storage.local.get(['jobs']);
-      const jobs = result.jobs || [];
-
-      const jobWithId = {
-        ...this.currentJobData,
-        id: Date.now().toString(),
-        savedAt: new Date().toISOString()
-      };
-
-      jobs.push(jobWithId);
-      await chrome.storage.local.set({ jobs });
-
-      this.showStatus('success', 'Job saved locally!');
-      await this.loadJobHistory();
-    } catch (error) {
-      this.showStatus('error', 'Failed to save locally');
-    }
-  }
-
-  private async saveToSheets(): Promise<void> {
-    if (!this.currentJobData) return;
-
-    const saveBtn = document.getElementById('save-sheets-btn') as HTMLButtonElement;
-    saveBtn.disabled = true;
-    saveBtn.innerHTML = '<span class="loading"></span> Saving...';
+    const trackBtn = document.getElementById('track-job-btn') as HTMLButtonElement;
+    trackBtn.disabled = true;
+    trackBtn.innerHTML = '<span class="loading"></span> Tracking Job...';
 
     try {
       if (!this.sheetsConfig.spreadsheetId) {
-        throw new Error('Please configure Google Sheets settings first');
+        throw new Error('Please configure Google Sheets settings first. Go to Settings tab.');
       }
 
       const duplicateCount = await GoogleSheetsService.getDuplicateJobs(
@@ -162,54 +138,79 @@ class PopupController {
       );
 
       if (duplicateCount > 0) {
-        const proceed = confirm(`This job URL already exists ${duplicateCount} time(s) in your spreadsheet. Continue anyway?`);
+        const proceed = confirm(
+          `This job URL already exists ${duplicateCount} time(s) in your spreadsheet.\n\n` +
+          `Continue tracking anyway?`
+        );
         if (!proceed) return;
       }
 
       await GoogleSheetsService.appendJobData(this.currentJobData, this.sheetsConfig);
 
-      await this.saveLocally();
-      this.showStatus('success', 'Job saved to Google Sheets!');
+      this.showStatus('success', 'Job tracked successfully!');
+      await this.loadJobHistory();
 
     } catch (error) {
-      console.error('Sheets save error:', error);
-      this.showStatus('error', error instanceof Error ? error.message : 'Failed to save to sheets');
+      console.error('Job tracking error:', error);
+      this.showStatus('error', error instanceof Error ? error.message : 'Failed to track job');
     } finally {
-      saveBtn.disabled = false;
-      saveBtn.innerHTML = 'Save to Sheets';
+      trackBtn.disabled = false;
+      trackBtn.innerHTML = 'Track Job';
     }
   }
 
   private async loadJobHistory(): Promise<void> {
-    try {
-      const result = await chrome.storage.local.get(['jobs']);
-      const jobs = result.jobs || [];
+    const jobList = document.getElementById('job-list') as HTMLDivElement;
 
-      const jobList = document.getElementById('job-list') as HTMLDivElement;
+    try {
+      if (!this.sheetsConfig.spreadsheetId) {
+        jobList.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">⚙️</div>
+            <p>Configure Google Sheets in Settings to view job history</p>
+          </div>
+        `;
+        return;
+      }
+
+      jobList.innerHTML = `
+        <div style="text-align: center; padding: 20px;">
+          <span class="loading"></span> Loading jobs from Google Sheets...
+        </div>
+      `;
+
+      const jobs = await GoogleSheetsService.getAllJobs(this.sheetsConfig);
 
       if (jobs.length === 0) {
         jobList.innerHTML = `
           <div class="empty-state">
             <div class="empty-state-icon">📋</div>
-            <p>No jobs saved yet</p>
+            <p>No jobs tracked yet</p>
+            <small style="color: #666;">Go to Extract tab to track your first job</small>
           </div>
         `;
         return;
       }
 
       jobList.innerHTML = jobs
-        .sort((a: any, b: any) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime())
         .map((job: any) => this.createJobItem(job))
         .join('');
 
     } catch (error) {
       console.error('Failed to load job history:', error);
+      jobList.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">❌</div>
+          <p>Failed to load job history</p>
+          <small style="color: #666;">${error instanceof Error ? error.message : 'Unknown error'}</small>
+        </div>
+      `;
     }
   }
 
   private createJobItem(job: any): string {
     const statusClass = job.applicationStatus.toLowerCase().replace(' ', '-');
-    const savedDate = new Date(job.savedAt).toLocaleDateString();
+    const submittedDate = job.dateSubmitted ? new Date(job.dateSubmitted).toLocaleDateString() : 'Not specified';
 
     return `
       <div class="job-item">
@@ -223,34 +224,30 @@ class PopupController {
           </div>
         </div>
         <div class="job-item-details">
-          ${job.salary ? `Salary: ${job.salary} • ` : ''}
-          Saved: ${savedDate}
-          ${job.linkToJobReq ? `• <a href="${job.linkToJobReq}" target="_blank">View Job</a>` : ''}
+          ${job.salary ? `💰 ${job.salary} • ` : ''}
+          📅 ${submittedDate}
+          ${job.linkToJobReq ? ` • <a href="${job.linkToJobReq}" target="_blank" style="color: #007bff;">View Job</a>` : ''}
+          ${job.notes ? ` • 📝 ${job.notes.slice(0, 50)}${job.notes.length > 50 ? '...' : ''}` : ''}
         </div>
       </div>
     `;
   }
 
-  private async clearHistory(): Promise<void> {
-    const confirm = window.confirm('Are you sure you want to clear all saved jobs?');
-    if (!confirm) return;
-
-    try {
-      await chrome.storage.local.set({ jobs: [] });
-      await this.loadJobHistory();
-      this.showStatus('success', 'Job history cleared');
-    } catch (error) {
-      this.showStatus('error', 'Failed to clear history');
-    }
-  }
 
   private async loadSettings(): Promise<void> {
     try {
-      const result = await chrome.storage.local.get(['sheetsConfig']);
+      const result = await chrome.storage.local.get(['sheetsConfig', 'serviceAccountConfig']);
       if (result.sheetsConfig) {
         this.sheetsConfig = result.sheetsConfig;
         (document.getElementById('spreadsheet-id') as HTMLInputElement).value = this.sheetsConfig.spreadsheetId;
         (document.getElementById('sheet-name') as HTMLInputElement).value = this.sheetsConfig.sheetName;
+      }
+
+      // Show service account status
+      if (result.serviceAccountConfig) {
+        this.showSettingsStatus('success', `Service account loaded: ${result.serviceAccountConfig.client_email}`);
+      } else {
+        this.showSettingsStatus('info', 'No service account configured yet');
       }
     } catch (error) {
       console.error('Failed to load settings:', error);
@@ -323,25 +320,81 @@ class PopupController {
     }
   }
 
-  private async authorize(): Promise<void> {
+  private async saveServiceAccount(): Promise<void> {
+    const serviceAccountJson = (document.getElementById('service-account-json') as HTMLTextAreaElement).value.trim();
+
+    if (!serviceAccountJson) {
+      this.showSettingsStatus('error', 'Please paste your service account JSON key');
+      return;
+    }
+
+    const saveBtn = document.getElementById('save-service-account-btn') as HTMLButtonElement;
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="loading"></span> Saving...';
+
     try {
-      const token = await GoogleSheetsService.getAuthToken();
-      if (token) {
-        this.showSettingsStatus('success', 'Authorization successful!');
+      const config = JSON.parse(serviceAccountJson);
+
+      // Validate required fields
+      const requiredFields = ['type', 'project_id', 'private_key', 'client_email', 'token_uri'];
+      for (const field of requiredFields) {
+        if (!config[field]) {
+          throw new Error(`Missing required field: ${field}`);
+        }
+      }
+
+      console.log('Service account config validation passed:', {
+        type: config.type,
+        project_id: config.project_id,
+        client_email: config.client_email,
+        hasPrivateKey: !!config.private_key
+      });
+
+      if (config.type !== 'service_account') {
+        throw new Error('Invalid service account type. Expected "service_account"');
+      }
+
+      console.log('Attempting to save service account config...');
+      const success = await GoogleSheetsService.saveServiceAccountConfig(config);
+      console.log('Save result:', success);
+
+      if (success) {
+        this.showSettingsStatus('success', 'Service account saved successfully!');
+        // Clear the textarea for security
+        (document.getElementById('service-account-json') as HTMLTextAreaElement).value = '';
+
+        // Test that it was actually saved
+        const savedConfig = await chrome.storage.local.get(['serviceAccountConfig']);
+        console.log('Verification - config was saved:', !!savedConfig.serviceAccountConfig);
       } else {
-        this.showSettingsStatus('error', 'Authorization failed');
+        this.showSettingsStatus('error', 'Failed to save service account configuration');
       }
     } catch (error) {
-      this.showSettingsStatus('error', 'Authorization failed');
+      console.error('Service account save error:', error);
+      if (error instanceof SyntaxError) {
+        this.showSettingsStatus('error', 'Invalid JSON format. Please check your service account key.');
+      } else if (error instanceof Error) {
+        this.showSettingsStatus('error', error.message);
+      } else {
+        this.showSettingsStatus('error', 'Failed to save service account configuration');
+      }
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = 'Save Service Account';
     }
   }
 
-  private async revokeAuth(): Promise<void> {
+  private async clearServiceAccount(): Promise<void> {
     try {
-      await GoogleSheetsService.revokeAuthToken();
-      this.showSettingsStatus('success', 'Access revoked successfully');
+      const success = await GoogleSheetsService.clearServiceAccountConfig();
+      if (success) {
+        this.showSettingsStatus('success', 'Service account configuration cleared');
+        (document.getElementById('service-account-json') as HTMLTextAreaElement).value = '';
+      } else {
+        this.showSettingsStatus('error', 'Failed to clear service account configuration');
+      }
     } catch (error) {
-      this.showSettingsStatus('error', 'Failed to revoke access');
+      this.showSettingsStatus('error', 'Failed to clear service account configuration');
     }
   }
 
@@ -365,7 +418,7 @@ class PopupController {
     }, 5000);
   }
 
-  private showSettingsStatus(type: 'success' | 'error', message: string): void {
+  private showSettingsStatus(type: 'success' | 'error' | 'info', message: string): void {
     const statusDiv = document.getElementById('settings-status') as HTMLDivElement;
     statusDiv.className = `settings-status ${type}`;
     statusDiv.textContent = message;

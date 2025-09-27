@@ -1,4 +1,4 @@
-# Universal Job Tracker Extension
+# Job Tracker Extension
 
 A powerful browser extension that automatically extracts job data from job boards and tracks your applications in Google Sheets.
 
@@ -169,11 +169,22 @@ npm run lint     # Check code quality
 3. Add tests for new parsers
 4. Submit pull request
 
-## Privacy
+## Privacy & Security
 
 - All job data stays in your Google Sheets and browser storage
 - No data sent to external servers (except Google Sheets API)
 - Authentication tokens stored securely in browser
+- Service account credentials are stored locally in browser extension storage only
+
+### Security Best Practices
+
+⚠️ **Important**: When using Google Service Account authentication:
+- Never share your service account JSON file
+- Never commit service account credentials to version control
+- Store the JSON file securely on your local machine only
+- Regenerate service account keys if compromised
+
+The extension stores service account data in Chrome's secure extension storage, which is encrypted and isolated from websites.
 
 ## License
 

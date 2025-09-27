@@ -7,3 +7,8 @@ dist/
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Security: Never commit service account credentials
+service-account.json
+*-service-account.json
+serviceAccountConfig.json

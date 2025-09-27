@@ -21,7 +21,7 @@ body {
 }
 
 .header {
-    background: linear-gradient(135deg, #007bff, #0056b3);
+    background: linear-gradient(135deg, #f59e0b, #d97706);
     color: white;
     padding: 16px 20px;
     display: flex;
@@ -66,8 +66,8 @@ body {
 
 .tab-button.active {
     background: white;
-    color: #007bff;
-    border-bottom: 2px solid #007bff;
+    color: #f59e0b;
+    border-bottom: 2px solid #f59e0b;
 }
 
 .tab-content {
@@ -85,7 +85,7 @@ body {
 }
 
 .primary-btn {
-    background: #007bff;
+    background: #f59e0b;
     color: white;
     border: none;
     padding: 12px 24px;
@@ -100,7 +100,7 @@ body {
 }
 
 .primary-btn:hover:not(:disabled) {
-    background: #0056b3;
+    background: #d97706;
     transform: translateY(-1px);
 }
 
@@ -210,8 +210,8 @@ body {
 .form-group select:focus,
 .form-group textarea:focus {
     outline: none;
-    border-color: #007bff;
-    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
 }
 
 .form-group input[readonly] {
@@ -262,8 +262,8 @@ body {
 }
 
 .job-item:hover {
-    border-color: #007bff;
-    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.15);
+    border-color: #f59e0b;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
 }
 
 .job-item-header {
@@ -406,7 +406,7 @@ body {
     width: 16px;
     height: 16px;
     border: 2px solid #f3f3f3;
-    border-top: 2px solid #007bff;
+    border-top: 2px solid #f59e0b;
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }

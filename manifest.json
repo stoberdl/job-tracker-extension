@@ -1,12 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "Job Tracker Extension",
-  "version": "1.0.0",
-  "description": "Track job applications across different job boards",
+  "name": "Job Tracker",
+  "version": "1.0.2",
+  "description": "Track job applications to Google Sheets from any job board",
   "permissions": [
     "activeTab",
     "storage",
-    "identity"
+    "tabs"
   ],
   "host_permissions": [
     "https://*.indeed.com/*",
@@ -22,7 +22,7 @@
     "https://sheets.googleapis.com/*"
   ],
   "background": {
-    "service_worker": "dist/background.js"
+    "service_worker": "background-standalone.js"
   },
   "content_scripts": [
     {
