@@ -76,10 +76,10 @@ class SimpleJobExtractor {
       companyName: company,
       role: role,
       salary: salary,
-      applicationStatus: 'Not Applied',
-      dateSubmitted: new Date().toISOString().split('T')[0],
+      applicationStatus: 'Submitted - Pending Response',
+      dateSubmitted: new Date().toLocaleDateString('en-CA'),
       linkToJobReq: window.location.href,
-      rejectionReason: '',
+      rejectionReason: 'N/A',
       notes: 'Extracted from LinkedIn'
     };
   }
@@ -105,10 +105,10 @@ class SimpleJobExtractor {
       companyName: company,
       role: role,
       salary: salary,
-      applicationStatus: 'Not Applied',
-      dateSubmitted: new Date().toISOString().split('T')[0],
+      applicationStatus: 'Submitted - Pending Response',
+      dateSubmitted: new Date().toLocaleDateString('en-CA'),
       linkToJobReq: window.location.href,
-      rejectionReason: '',
+      rejectionReason: 'N/A',
       notes: 'Extracted from Indeed'
     };
   }
@@ -136,10 +136,10 @@ class SimpleJobExtractor {
       companyName: company,
       role: role,
       salary: salary,
-      applicationStatus: 'Not Applied',
-      dateSubmitted: new Date().toISOString().split('T')[0],
+      applicationStatus: 'Submitted - Pending Response',
+      dateSubmitted: new Date().toLocaleDateString('en-CA'),
       linkToJobReq: window.location.href,
-      rejectionReason: '',
+      rejectionReason: 'N/A',
       notes: 'Extracted from Glassdoor'
     };
   }
@@ -163,10 +163,10 @@ class SimpleJobExtractor {
       companyName: company,
       role: role,
       salary: '',
-      applicationStatus: 'Not Applied',
-      dateSubmitted: new Date().toISOString().split('T')[0],
+      applicationStatus: 'Submitted - Pending Response',
+      dateSubmitted: new Date().toLocaleDateString('en-CA'),
       linkToJobReq: window.location.href,
-      rejectionReason: '',
+      rejectionReason: 'N/A',
       notes: 'Extracted using generic parser - please verify'
     };
   }

@@ -13,6 +13,7 @@ class PopupController {
     this.setupEventListeners();
     this.setupTabs();
     await this.loadSettings();
+    await this.loadDraftFromSession();
     await this.loadJobHistory();
     this.loadSupportedSites();
     this.updateStatus('Ready');
@@ -21,6 +22,7 @@ class PopupController {
   setupEventListeners() {
     document.getElementById('extract-btn')?.addEventListener('click', () => this.extractJobData());
     document.getElementById('track-job-btn')?.addEventListener('click', () => this.trackJob());
+    document.getElementById('clear-form-btn')?.addEventListener('click', () => this.clearForm());
     document.getElementById('refresh-history-btn')?.addEventListener('click', () => this.loadJobHistory());
 
     document.getElementById('save-settings-btn')?.addEventListener('click', () => this.saveSettings());
@@ -67,6 +69,7 @@ class PopupController {
 
       if (response.success && response.data) {
         this.currentJobData = response.data;
+        await this.saveDraftToSession();
         this.populateForm(response.data);
         this.showJobPreview();
         this.showStatus('success', 'Job data extracted successfully!');
@@ -108,6 +111,8 @@ class PopupController {
       rejectionReason: formData.get('rejectionReason'),
       notes: formData.get('notes'),
     };
+
+    this.saveDraftToSession();
   }
 
   showJobPreview() {
@@ -140,6 +145,7 @@ class PopupController {
       await this.appendJobData(this.currentJobData, this.sheetsConfig);
 
       this.showStatus('success', 'Job tracked successfully!');
+      await this.clearDraftFromSession();
       await this.loadJobHistory();
 
     } catch (error) {
@@ -385,6 +391,41 @@ class PopupController {
     } catch (error) {
       this.showSettingsStatus('error', 'Failed to clear service account configuration');
     }
+  }
+
+  async saveDraftToSession() {
+    if (this.currentJobData) {
+      await chrome.storage.session.set({ draftJobData: this.currentJobData });
+    }
+  }
+
+  async loadDraftFromSession() {
+    const result = await chrome.storage.session.get(['draftJobData']);
+    if (result.draftJobData) {
+      this.currentJobData = result.draftJobData;
+      this.populateForm(result.draftJobData);
+      this.showJobPreview();
+    }
+  }
+
+  async clearDraftFromSession() {
+    this.currentJobData = null;
+    await chrome.storage.session.remove(['draftJobData']);
+  }
+
+  async clearForm() {
+    await this.clearDraftFromSession();
+    document.getElementById('company-name').value = '';
+    document.getElementById('role').value = '';
+    document.getElementById('salary').value = '';
+    document.getElementById('application-status').value = 'Applied';
+    document.getElementById('date-submitted').value = '';
+    document.getElementById('job-url').value = '';
+    document.getElementById('rejection-reason').value = '';
+    document.getElementById('notes').value = '';
+    const preview = document.getElementById('job-preview');
+    preview.style.display = 'none';
+    this.showStatus('info', 'Form cleared');
   }
 
   loadSupportedSites() {
@@ -953,7 +994,7 @@ class PopupController {
         })
         .map((row, index) => ({
           companyName: row[0] || '',
-          applicationStatus: row[1] || 'Not Applied',
+          applicationStatus: row[1] || 'Have Not Applied',
           role: row[2] || '',
           salary: row[3] || '',
           dateSubmitted: row[4] || '',
