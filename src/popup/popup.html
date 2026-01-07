@@ -50,11 +50,19 @@
                     <div class="form-group">
                         <label for="application-status">Application Status</label>
                         <select id="application-status" name="applicationStatus">
-                            <option value="Not Applied">Not Applied</option>
-                            <option value="Applied">Applied</option>
-                            <option value="Interview">Interview</option>
+                            <option value="Have Not Applied">Have Not Applied</option>
+                            <option value="Submitted - Pending Response" selected>Submitted - Pending Response</option>
                             <option value="Rejected">Rejected</option>
-                            <option value="Offer">Offer</option>
+                            <option value="Interviewing">Interviewing</option>
+                            <option value="Offer Extended - In Progress">Offer Extended - In Progress</option>
+                            <option value="Job Rec Removed/Deleted">Job Rec Removed/Deleted</option>
+                            <option value="Ghosted">Ghosted</option>
+                            <option value="Offer Extended - Did Not Accept">Offer Extended - Did Not Accept</option>
+                            <option value="Re-Applied With Updates">Re-Applied With Updates</option>
+                            <option value="Rescinded Application">Rescinded Application</option>
+                            <option value="Not For Me">Not For Me</option>
+                            <option value="Sent Follow Up Email">Sent Follow Up Email</option>
+                            <option value="N/A">N/A</option>
                         </select>
                     </div>
 
@@ -70,7 +78,22 @@
 
                     <div class="form-group">
                         <label for="rejection-reason">Rejection Reason</label>
-                        <input type="text" id="rejection-reason" name="rejectionReason" placeholder="If applicable">
+                        <select id="rejection-reason" name="rejectionReason">
+                            <option value="">Select rejection reason (if applicable)</option>
+                            <option value="Filled - Internal">Filled - Internal</option>
+                            <option value="Generic &quot;Not A Good Fit&quot;">Generic "Not A Good Fit"</option>
+                            <option value="No New Applicants">No New Applicants</option>
+                            <option value="Eliminated Role">Eliminated Role</option>
+                            <option value="Changed Job Scope">Changed Job Scope</option>
+                            <option value="Applied Too Late">Applied Too Late</option>
+                            <option value="Auto-Reject: No Feedback">Auto-Reject: No Feedback</option>
+                            <option value="1st Round Rejection">1st Round Rejection</option>
+                            <option value="Middle Round Rejection">Middle Round Rejection</option>
+                            <option value="N/A" selected>N/A</option>
+                            <option value="Final Round Rejection">Final Round Rejection</option>
+                            <option value="No Response: Sent Email">No Response: Sent Email</option>
+                            <option value="Post-Interview Follow-up">Post-Interview Follow-up</option>
+                        </select>
                     </div>
 
                     <div class="form-group">

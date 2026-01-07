@@ -110,7 +110,7 @@ class PopupController {
       applicationStatus: formData.get('applicationStatus') as JobData['applicationStatus'],
       dateSubmitted: formData.get('dateSubmitted') as string,
       linkToJobReq: formData.get('linkToJobReq') as string,
-      rejectionReason: formData.get('rejectionReason') as string,
+      rejectionReason: (formData.get('rejectionReason') as JobData['rejectionReason']) || '',
       notes: formData.get('notes') as string,
     };
   }

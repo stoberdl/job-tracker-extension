@@ -111,12 +111,12 @@ export class ParserFactory {
   private static getEmptyJobData(): JobData {
     return {
       companyName: '',
-      applicationStatus: 'Not Applied',
+      applicationStatus: 'Submitted - Pending Response',
       role: '',
       salary: '',
       dateSubmitted: new Date().toISOString().split('T')[0] || '',
       linkToJobReq: window.location.href,
-      rejectionReason: '',
+      rejectionReason: 'N/A',
       notes: 'Manual entry required - extraction failed'
     };
   }

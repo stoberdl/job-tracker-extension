@@ -107,12 +107,12 @@ export abstract class BaseParser implements SiteParser {
   protected getDefaultJobData(): JobData {
     return {
       companyName: '',
-      applicationStatus: 'Not Applied',
+      applicationStatus: 'Submitted - Pending Response',
       role: '',
       salary: '',
       dateSubmitted: new Date().toISOString().split('T')[0] || '',
       linkToJobReq: window.location.href,
-      rejectionReason: '',
+      rejectionReason: 'N/A',
       notes: `Extracted using ${this.siteName} parser`
     };
   }

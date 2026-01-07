@@ -150,6 +150,7 @@ export class GoogleSheetsService {
   private static async formatHeaders(config: SheetsConfig, token: string): Promise<void> {
     try {
       const requests = [
+        // Format header row
         {
           repeatCell: {
             range: {
@@ -170,6 +171,72 @@ export class GoogleSheetsService {
             },
             fields: 'userEnteredFormat(backgroundColor,textFormat)'
           }
+        },
+        // Data validation for Application Status column (column B)
+        {
+          setDataValidation: {
+            range: {
+              sheetId: 0,
+              startRowIndex: 1,
+              startColumnIndex: 1,
+              endColumnIndex: 2
+            },
+            rule: {
+              condition: {
+                type: 'ONE_OF_LIST',
+                values: [
+                  { userEnteredValue: 'Have Not Applied' },
+                  { userEnteredValue: 'Submitted - Pending Response' },
+                  { userEnteredValue: 'Rejected' },
+                  { userEnteredValue: 'Interviewing' },
+                  { userEnteredValue: 'Offer Extended - In Progress' },
+                  { userEnteredValue: 'Job Rec Removed/Deleted' },
+                  { userEnteredValue: 'Ghosted' },
+                  { userEnteredValue: 'Offer Extended - Did Not Accept' },
+                  { userEnteredValue: 'Re-Applied With Updates' },
+                  { userEnteredValue: 'Rescinded Application' },
+                  { userEnteredValue: 'Not For Me' },
+                  { userEnteredValue: 'Sent Follow Up Email' },
+                  { userEnteredValue: 'N/A' }
+                ]
+              },
+              showCustomUi: true,
+              strict: true
+            }
+          }
+        },
+        // Data validation for Rejection Reason column (column G)
+        {
+          setDataValidation: {
+            range: {
+              sheetId: 0,
+              startRowIndex: 1,
+              startColumnIndex: 6,
+              endColumnIndex: 7
+            },
+            rule: {
+              condition: {
+                type: 'ONE_OF_LIST',
+                values: [
+                  { userEnteredValue: 'Filled - Internal' },
+                  { userEnteredValue: 'Generic "Not A Good Fit"' },
+                  { userEnteredValue: 'No New Applicants' },
+                  { userEnteredValue: 'Eliminated Role' },
+                  { userEnteredValue: 'Changed Job Scope' },
+                  { userEnteredValue: 'Applied Too Late' },
+                  { userEnteredValue: 'Auto-Reject: No Feedback' },
+                  { userEnteredValue: '1st Round Rejection' },
+                  { userEnteredValue: 'Middle Round Rejection' },
+                  { userEnteredValue: 'N/A' },
+                  { userEnteredValue: 'Final Round Rejection' },
+                  { userEnteredValue: 'No Response: Sent Email' },
+                  { userEnteredValue: 'Post-Interview Follow-up' }
+                ]
+              },
+              showCustomUi: true,
+              strict: true
+            }
+          }
         }
       ];
 
@@ -184,8 +251,115 @@ export class GoogleSheetsService {
           body: JSON.stringify({ requests })
         }
       );
+
+      // Apply conditional formatting for colors
+      await this.applyConditionalFormatting(config, token);
     } catch (error) {
       console.warn('Failed to format headers:', error);
+    }
+  }
+
+  private static async applyConditionalFormatting(config: SheetsConfig, token: string): Promise<void> {
+    try {
+      const applicationStatusColors = {
+        'Have Not Applied': { red: 0.85, green: 0.85, blue: 0.85 }, // Light Gray
+        'Submitted - Pending Response': { red: 1.0, green: 1.0, blue: 0.0 }, // Yellow
+        'Rejected': { red: 1.0, green: 0.0, blue: 0.0 }, // Red
+        'Interviewing': { red: 0.56, green: 0.93, blue: 0.56 }, // Light Green
+        'Offer Extended - In Progress': { red: 1.0, green: 0.85, blue: 0.7 }, // Peach
+        'Job Rec Removed/Deleted': { red: 0.5, green: 0.0, blue: 0.5 }, // Purple
+        'Ghosted': { red: 0.0, green: 0.0, blue: 1.0 }, // Blue
+        'Offer Extended - Did Not Accept': { red: 0.0, green: 0.5, blue: 0.5 }, // Dark Teal
+        'Re-Applied With Updates': { red: 0.68, green: 0.85, blue: 0.9 }, // Light Blue
+        'Rescinded Application': { red: 1.0, green: 0.65, blue: 0.0 }, // Orange
+        'Not For Me': { red: 1.0, green: 0.75, blue: 0.8 }, // Pink
+        'Sent Follow Up Email': { red: 0.0, green: 0.5, blue: 0.0 }, // Green
+        'N/A': { red: 0.0, green: 0.0, blue: 0.0 } // Black
+      };
+
+      const rejectionReasonColors = {
+        'Filled - Internal': { red: 0.8, green: 0.6, blue: 0.8 }, // Light Purple
+        'Generic "Not A Good Fit"': { red: 0.96, green: 0.87, blue: 0.7 }, // Beige
+        'No New Applicants': { red: 0.65, green: 0.16, blue: 0.16 }, // Brown
+        'Eliminated Role': { red: 1.0, green: 0.0, blue: 0.0 }, // Red
+        'Changed Job Scope': { red: 1.0, green: 0.85, blue: 0.7 }, // Peach
+        'Applied Too Late': { red: 1.0, green: 1.0, blue: 0.0 }, // Yellow
+        'Auto-Reject: No Feedback': { red: 0.5, green: 0.5, blue: 0.5 }, // Gray
+        '1st Round Rejection': { red: 0.85, green: 0.85, blue: 0.85 }, // Light Gray
+        'Middle Round Rejection': { red: 0.0, green: 0.5, blue: 0.5 }, // Teal
+        'N/A': { red: 0.0, green: 0.0, blue: 0.0 }, // Black
+        'Final Round Rejection': { red: 0.0, green: 0.39, blue: 0.39 }, // Dark Teal
+        'No Response: Sent Email': { red: 0.0, green: 0.39, blue: 0.39 }, // Dark Teal
+        'Post-Interview Follow-up': { red: 1.0, green: 0.0, blue: 0.0 } // Red
+      };
+
+      const conditionalFormattingRequests: any[] = [];
+
+      // Application Status conditional formatting
+      Object.entries(applicationStatusColors).forEach(([status, color]) => {
+        conditionalFormattingRequests.push({
+          addConditionalFormatRule: {
+            rule: {
+              ranges: [{
+                sheetId: 0,
+                startRowIndex: 1,
+                startColumnIndex: 1,
+                endColumnIndex: 2
+              }],
+              booleanRule: {
+                condition: {
+                  type: 'TEXT_EQ',
+                  values: [{ userEnteredValue: status }]
+                },
+                format: {
+                  backgroundColor: color
+                }
+              }
+            },
+            index: 0
+          }
+        });
+      });
+
+      // Rejection Reason conditional formatting
+      Object.entries(rejectionReasonColors).forEach(([reason, color]) => {
+        conditionalFormattingRequests.push({
+          addConditionalFormatRule: {
+            rule: {
+              ranges: [{
+                sheetId: 0,
+                startRowIndex: 1,
+                startColumnIndex: 6,
+                endColumnIndex: 7
+              }],
+              booleanRule: {
+                condition: {
+                  type: 'TEXT_EQ',
+                  values: [{ userEnteredValue: reason }]
+                },
+                format: {
+                  backgroundColor: color
+                }
+              }
+            },
+            index: 0
+          }
+        });
+      });
+
+      await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}:batchUpdate`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ requests: conditionalFormattingRequests })
+        }
+      );
+    } catch (error) {
+      console.warn('Failed to apply conditional formatting:', error);
     }
   }
 
