@@ -1,5 +1,7 @@
 import { BaseParser } from '../base/BaseParser';
 import { JobData } from '../../types/JobData';
+import { RoleDetector } from '../utils/RoleDetector';
+import { CompanyDetector, CompanyCandidate } from '../utils/CompanyDetector';
 
 export class GenericParser extends BaseParser {
   siteName = 'Generic';
@@ -17,59 +19,122 @@ export class GenericParser extends BaseParser {
   }
 
   private smartExtractCompany(): string {
-    const patterns = [
-      () => this.extractBySelectors(this.commonSelectors.companyName),
-      () => this.extractFromPageTitle(),
-      () => this.extractFromBreadcrumbs(),
-      () => this.extractFromURL(),
-      () => this.extractFromMetaTags(),
-      () => this.extractFromLogoAlt()
-    ];
+    const candidates: CompanyCandidate[] = [];
 
-    for (const pattern of patterns) {
-      const result = pattern();
-      if (result && result.length > 1) {
-        return result;
-      }
+    // Strategy 1: CSS selectors (high confidence)
+    const selectorResult = this.extractBySelectors(this.commonSelectors.companyName);
+    if (selectorResult) {
+      candidates.push({
+        name: selectorResult,
+        frequency: 1,
+        source: 'selector',
+        confidence: 90
+      });
     }
-    return '';
+
+    // Strategy 2: Meta tags
+    const metaResult = this.extractFromMetaTags();
+    if (metaResult) {
+      candidates.push({
+        name: metaResult,
+        frequency: 1,
+        source: 'meta',
+        confidence: 80
+      });
+    }
+
+    // Strategy 3: Page title
+    const titleResult = this.extractFromPageTitle();
+    if (titleResult) {
+      candidates.push({
+        name: titleResult,
+        frequency: 1,
+        source: 'title',
+        confidence: 70
+      });
+    }
+
+    // Strategy 4: Context patterns (e.g., "Join [Company] team")
+    const bodyText = document.body?.textContent || '';
+    const contextCandidates = CompanyDetector.extractFromContextPatterns(bodyText);
+    candidates.push(...contextCandidates);
+
+    // Strategy 5: Frequency analysis
+    const frequencyCandidates = CompanyDetector.extractByFrequency(document);
+    candidates.push(...frequencyCandidates);
+
+    // Strategy 6: Logo alt text (fallback)
+    const logoResult = this.extractFromLogoAlt();
+    if (logoResult) {
+      candidates.push({
+        name: logoResult,
+        frequency: 1,
+        source: 'selector',
+        confidence: 50
+      });
+    }
+
+    // Strategy 7: URL domain (last resort)
+    const urlResult = this.extractFromURL();
+    if (urlResult) {
+      candidates.push({
+        name: urlResult,
+        frequency: 1,
+        source: 'url',
+        confidence: 30
+      });
+    }
+
+    // Strategy 8: Breadcrumbs
+    const breadcrumbResult = this.extractFromBreadcrumbs();
+    if (breadcrumbResult) {
+      candidates.push({
+        name: breadcrumbResult,
+        frequency: 1,
+        source: 'selector',
+        confidence: 60
+      });
+    }
+
+    // Use voting/scoring to select best candidate
+    return CompanyDetector.selectBestCandidate(candidates);
   }
 
   private smartExtractRole(): string {
-    const h1Text = document.querySelector('h1')?.textContent?.trim() || '';
-    const titleText = document.title;
+    const candidates: string[] = [];
 
-    const jobKeywords = [
-      'engineer', 'developer', 'manager', 'analyst', 'specialist', 'coordinator',
-      'director', 'lead', 'senior', 'junior', 'intern', 'associate', 'consultant',
-      'architect', 'designer', 'scientist', 'researcher', 'technician', 'administrator'
-    ];
+    // Collect candidates from multiple sources
+    const h1Text = document.querySelector('h1')?.textContent?.trim();
+    if (h1Text) candidates.push(h1Text);
 
-    if (h1Text && this.containsJobKeywords(h1Text, jobKeywords)) {
-      return h1Text;
+    // Title text (first segment before separator)
+    const titleParts = document.title.split(/[\|\-\–]/);
+    if (titleParts[0]?.trim()) {
+      candidates.push(titleParts[0].trim());
     }
 
-    if (titleText && this.containsJobKeywords(titleText, jobKeywords)) {
-      const cleanTitle = titleText.split(/[\|\-\–]/)[0]?.trim() || '';
-      return cleanTitle;
-    }
+    // Job title from CSS selectors
+    const selectorResult = this.extractBySelectors(this.commonSelectors.jobTitle);
+    if (selectorResult) candidates.push(selectorResult);
 
-    const jobTitleFromSelectors = this.extractBySelectors(this.commonSelectors.jobTitle);
-    if (jobTitleFromSelectors) {
-      return jobTitleFromSelectors;
-    }
-
+    // All headers (h1, h2, h3)
     const allHeaders = document.querySelectorAll('h1, h2, h3');
-    for (let i = 0; i < allHeaders.length; i++) {
-      const header = allHeaders[i];
-      if (!header) continue;
-      const headerText = header.textContent?.trim() || '';
-      if (this.containsJobKeywords(headerText, jobKeywords)) {
-        return headerText;
+    allHeaders.forEach(header => {
+      const headerText = header.textContent?.trim();
+      if (headerText && headerText.length < 150) {
+        candidates.push(headerText);
       }
+    });
+
+    // Use RoleDetector to find best match with scoring
+    const bestMatch = RoleDetector.extractBestRole(candidates);
+
+    if (bestMatch && bestMatch.score >= 30) {
+      return bestMatch.text;
     }
 
-    return '';
+    // Fallback: return first h1 if available
+    return h1Text || '';
   }
 
   private smartExtractSalary(): string {
@@ -134,11 +199,6 @@ export class GenericParser extends BaseParser {
       }
     }
     return '';
-  }
-
-  private containsJobKeywords(text: string, keywords: string[]): boolean {
-    const lowerText = text.toLowerCase();
-    return keywords.some(keyword => lowerText.includes(keyword));
   }
 
   isValidJobPage(): boolean {

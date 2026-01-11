@@ -1,4 +1,277 @@
 // Standalone content script without ES6 modules
+
+// Role Detection with Scoring
+class RoleDetector {
+  // Tier 1: Exact tech role matches (highest priority, score: 100)
+  static exactTechRoles = [
+    'software engineer', 'software developer', 'full stack developer',
+    'fullstack developer', 'full-stack developer', 'frontend developer',
+    'front-end developer', 'frontend engineer', 'front-end engineer',
+    'backend developer', 'back-end developer', 'backend engineer',
+    'back-end engineer', 'devops engineer', 'site reliability engineer',
+    'sre', 'platform engineer', 'cloud engineer', 'data engineer',
+    'ml engineer', 'machine learning engineer', 'ai engineer',
+    'mobile developer', 'mobile engineer', 'ios developer', 'ios engineer',
+    'android developer', 'android engineer', 'web developer',
+    'systems engineer', 'infrastructure engineer', 'security engineer',
+    'qa engineer', 'test engineer', 'automation engineer',
+    'solutions architect', 'technical architect', 'software architect',
+    'data scientist', 'research scientist', 'applied scientist', 'research engineer'
+  ];
+
+  // Tier 2: Regex patterns for common SWE formats (score: 90)
+  static techPatterns = [
+    /\b(sde|swe|sre)\s*[iI1-3]{1,3}\b/i,
+    /\bstaff\s+(software\s+)?engineer/i,
+    /\bprincipal\s+(software\s+)?engineer/i,
+    /\bsenior\s+(software\s+)?engineer/i,
+    /\bjunior\s+(software\s+)?engineer/i,
+    /\b(sr\.|sr)\s+(software\s+)?engineer/i,
+    /\b(software|backend|frontend|full[- ]?stack)\s+engineer(ing)?\s+(intern|new\s+grad)/i,
+    /\bengineer\s*[-–]\s*(backend|frontend|platform|infrastructure|data)/i,
+    /\b(l[3-7]|e[3-7]|ic[1-5])\s+(software\s+)?engineer/i,
+    /\bnew\s+grad\s+(software\s+)?engineer/i,
+    /\bentry[- ]level\s+(software\s+)?engineer/i,
+    /\b(backend|frontend|fullstack|full-stack)\s+engineer/i,
+    /\b(python|java|golang|rust|node|react|typescript)\s+(developer|engineer)/i,
+    /\bdev\s*ops\b/i,
+    /\bsoftware\s+development\s+engineer/i
+  ];
+
+  // Tier 3: Generic tech keywords (score: 70)
+  static genericTechKeywords = ['engineer', 'developer', 'architect', 'programmer', 'coder'];
+
+  // Tier 4: General role keywords (score: 30)
+  static genericKeywords = ['manager', 'analyst', 'specialist', 'lead', 'director', 'consultant', 'coordinator'];
+
+  // Negative keywords that suggest non-tech roles
+  static nonTechIndicators = [
+    'sales', 'marketing', 'hr', 'human resources', 'recruiting', 'recruiter',
+    'talent acquisition', 'account manager', 'customer success', 'support specialist',
+    'office manager', 'administrative', 'financial analyst', 'operations manager',
+    'project manager', 'product manager'
+  ];
+
+  static scoreRole(text) {
+    const lowerText = text.toLowerCase().trim();
+    if (text.length > 150) return null;
+
+    let hasNonTechIndicator = false;
+    for (const indicator of this.nonTechIndicators) {
+      if (lowerText.includes(indicator)) {
+        const hasStrongTechSignal = this.exactTechRoles.some(role => lowerText.includes(role));
+        if (!hasStrongTechSignal) {
+          hasNonTechIndicator = true;
+          break;
+        }
+      }
+    }
+
+    // Tier 1: Exact tech role match
+    for (const role of this.exactTechRoles) {
+      if (lowerText.includes(role)) {
+        return { text, score: 100, matchType: 'exact_tech' };
+      }
+    }
+
+    // Tier 2: Regex pattern match
+    for (const pattern of this.techPatterns) {
+      if (pattern.test(lowerText)) {
+        return { text, score: 90, matchType: 'tech_pattern' };
+      }
+    }
+
+    // Tier 3: Generic tech keywords
+    for (const keyword of this.genericTechKeywords) {
+      if (lowerText.includes(keyword)) {
+        const score = hasNonTechIndicator ? 40 : 70;
+        return { text, score, matchType: 'generic_tech' };
+      }
+    }
+
+    // Tier 4: Generic keywords
+    if (!hasNonTechIndicator) {
+      for (const keyword of this.genericKeywords) {
+        if (lowerText.includes(keyword)) {
+          return { text, score: 30, matchType: 'generic' };
+        }
+      }
+    }
+
+    if (hasNonTechIndicator) {
+      return { text, score: 10, matchType: 'generic' };
+    }
+
+    return null;
+  }
+
+  static extractBestRole(candidates) {
+    let bestMatch = null;
+    for (const candidate of candidates) {
+      if (!candidate || candidate.trim().length === 0) continue;
+      const match = this.scoreRole(candidate.trim());
+      if (match && (!bestMatch || match.score > bestMatch.score)) {
+        bestMatch = match;
+      }
+    }
+    return bestMatch;
+  }
+}
+
+// Company Detection with Frequency and Pattern Analysis
+class CompanyDetector {
+  static contextPatterns = [
+    /(?:at|@)\s+([A-Z][A-Za-z0-9\s&.,'-]+?)(?:\s+is|\s+we|[.,]|$)/i,
+    /join\s+(?:the\s+)?([A-Z][A-Za-z0-9\s&.,'-]+?)\s+(?:team|family)/i,
+    /([A-Z][A-Za-z0-9\s&.,'-]+?)\s+is\s+(?:hiring|looking|seeking)/i,
+    /work(?:ing)?\s+(?:at|for)\s+([A-Z][A-Za-z0-9\s&.,'-]+?)(?:\s|[.,]|$)/i,
+    /careers?\s+(?:at|with)\s+([A-Z][A-Za-z0-9\s&.,'-]+)/i,
+    /([A-Z][A-Za-z0-9\s&.,'-]+?)\s+careers?/i,
+    /about\s+([A-Z][A-Za-z0-9\s&.,'-]+?)(?:\s|:)/i,
+    /([A-Z][A-Za-z0-9\s&.,'-]+?)\s+(?:jobs?|openings?|positions?)/i
+  ];
+
+  static stopWords = new Set([
+    'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+    'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been',
+    'be', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
+    'could', 'should', 'may', 'might', 'must', 'shall', 'can', 'need',
+    'job', 'jobs', 'career', 'careers', 'position', 'positions', 'opening',
+    'apply', 'application', 'hiring', 'looking', 'seeking', 'join',
+    'team', 'work', 'working', 'opportunity', 'opportunities',
+    'software', 'engineer', 'developer', 'senior', 'junior', 'manager',
+    'remote', 'hybrid', 'onsite', 'full-time', 'part-time', 'contract',
+    'about', 'us', 'our', 'we', 'you', 'your', 'this', 'that', 'these',
+    'new', 'all', 'more', 'view', 'see', 'find', 'search', 'home', 'back',
+    'next', 'previous', 'page', 'site', 'website', 'company', 'companies'
+  ]);
+
+  static negativeIndicators = [
+    'description', 'requirements', 'qualifications', 'responsibilities',
+    'benefits', 'location', 'salary', 'experience', 'skills', 'education',
+    'overview', 'summary', 'details', 'information', 'posted', 'date',
+    'apply now', 'submit', 'sign in', 'log in', 'register', 'similar jobs'
+  ];
+
+  static cleanCompanyName(name) {
+    let cleaned = name.trim()
+      .replace(/\s+(is|are|was|team|jobs?|careers?|Inc\.?|LLC|Ltd\.?|Corp\.?)$/i, '')
+      .replace(/[,.]$/, '')
+      .trim();
+
+    const words = cleaned.toLowerCase().split(/\s+/);
+    if (words.every(word => this.stopWords.has(word))) {
+      return '';
+    }
+
+    const lowerCleaned = cleaned.toLowerCase();
+    if (this.negativeIndicators.some(ind => lowerCleaned.includes(ind))) {
+      return '';
+    }
+
+    return cleaned;
+  }
+
+  static extractFromContextPatterns(text) {
+    const candidates = [];
+    const seenNames = new Set();
+
+    for (const pattern of this.contextPatterns) {
+      const regex = new RegExp(pattern, 'gi');
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        if (match[1]) {
+          const name = this.cleanCompanyName(match[1]);
+          if (name && name.length >= 2 && name.length <= 50 && !seenNames.has(name.toLowerCase())) {
+            seenNames.add(name.toLowerCase());
+            candidates.push({ name, frequency: 1, source: 'context_pattern', confidence: 85 });
+          }
+        }
+      }
+    }
+
+    return candidates;
+  }
+
+  static extractByFrequency(doc) {
+    const textContent = doc.body?.textContent || '';
+    const wordFrequency = new Map();
+    const capitalizedPattern = /\b([A-Z][a-z]*(?:\s+[A-Z][a-z]*){0,3})\b/g;
+    let match;
+
+    while ((match = capitalizedPattern.exec(textContent)) !== null) {
+      const phrase = match[1].trim();
+      const words = phrase.split(/\s+/);
+
+      if (words.length === 1 && this.stopWords.has(words[0].toLowerCase())) continue;
+      if (words.every(word => this.stopWords.has(word.toLowerCase()))) continue;
+      if (phrase.length < 2 || phrase.length > 40) continue;
+
+      const lowerPhrase = phrase.toLowerCase();
+      if (this.negativeIndicators.some(ind => lowerPhrase.includes(ind))) continue;
+      if (words.length > 4) continue;
+
+      const current = wordFrequency.get(phrase) || 0;
+      wordFrequency.set(phrase, current + 1);
+    }
+
+    const candidates = [];
+    for (const [name, frequency] of wordFrequency) {
+      if (frequency >= 3) {
+        candidates.push({
+          name,
+          frequency,
+          source: 'frequency',
+          confidence: Math.min(95, 50 + (frequency * 5))
+        });
+      }
+    }
+
+    candidates.sort((a, b) => b.frequency - a.frequency);
+    return candidates.slice(0, 10);
+  }
+
+  static selectBestCandidate(candidates) {
+    if (candidates.length === 0) return '';
+
+    const scored = candidates.map(candidate => {
+      let score = candidate.confidence;
+
+      switch (candidate.source) {
+        case 'context_pattern': score += 20; break;
+        case 'selector': score += 15; break;
+        case 'meta': score += 10; break;
+        case 'frequency': score += candidate.frequency * 3; break;
+        case 'title': score += 5; break;
+        case 'url': score += 0; break;
+      }
+
+      if (candidate.frequency > 1) {
+        score += Math.min(20, candidate.frequency * 2);
+      }
+
+      if (candidate.name.length < 3) score -= 20;
+
+      const lowerName = candidate.name.toLowerCase();
+      const jobTitleWords = ['engineer', 'developer', 'manager', 'director', 'analyst', 'specialist'];
+      if (jobTitleWords.some(word => lowerName.includes(word))) score -= 50;
+
+      const genericTerms = ['software', 'remote', 'hybrid', 'full time', 'part time'];
+      if (genericTerms.some(term => lowerName.includes(term))) score -= 40;
+
+      return { ...candidate, finalScore: score };
+    });
+
+    scored.sort((a, b) => b.finalScore - a.finalScore);
+
+    if (scored[0].finalScore >= 40) {
+      return scored[0].name;
+    }
+
+    return '';
+  }
+}
+
 class JobTracker {
   constructor() {
     this.init();
@@ -145,19 +418,11 @@ class SimpleJobExtractor {
   }
 
   extractGeneric() {
-    const role = this.getTextFromSelectors([
-      'h1',
-      '.job-title',
-      '[class*="job-title"]',
-      '[class*="title"]'
-    ]);
+    // Smart role extraction with scoring
+    const role = this.smartExtractRole();
 
-    const company = this.getTextFromSelectors([
-      '.company',
-      '.company-name',
-      '[class*="company"]',
-      'a[href*="/company/"]'
-    ]) || this.extractCompanyFromTitle();
+    // Smart company extraction with voting
+    const company = this.smartExtractCompany();
 
     return {
       companyName: company,
@@ -169,6 +434,107 @@ class SimpleJobExtractor {
       rejectionReason: 'N/A',
       notes: 'Extracted using generic parser - please verify'
     };
+  }
+
+  smartExtractRole() {
+    const candidates = [];
+
+    // Collect candidates from multiple sources
+    const h1Text = document.querySelector('h1')?.textContent?.trim();
+    if (h1Text) candidates.push(h1Text);
+
+    // Title text (first segment before separator)
+    const titleParts = document.title.split(/[\|\-\–]/);
+    if (titleParts[0]?.trim()) {
+      candidates.push(titleParts[0].trim());
+    }
+
+    // Job title from CSS selectors
+    const selectorResult = this.getTextFromSelectors([
+      '.job-title', '[class*="job-title"]', '[class*="title"]',
+      '[data-testid*="title"]', '[data-test*="title"]'
+    ]);
+    if (selectorResult) candidates.push(selectorResult);
+
+    // All headers (h1, h2, h3)
+    const allHeaders = document.querySelectorAll('h1, h2, h3');
+    allHeaders.forEach(header => {
+      const headerText = header.textContent?.trim();
+      if (headerText && headerText.length < 150) {
+        candidates.push(headerText);
+      }
+    });
+
+    // Use RoleDetector to find best match with scoring
+    const bestMatch = RoleDetector.extractBestRole(candidates);
+
+    if (bestMatch && bestMatch.score >= 30) {
+      return bestMatch.text;
+    }
+
+    // Fallback: return first h1 if available
+    return h1Text || '';
+  }
+
+  smartExtractCompany() {
+    const candidates = [];
+
+    // Strategy 1: CSS selectors (high confidence)
+    const selectorResult = this.getTextFromSelectors([
+      '.company', '.company-name', '[class*="company"]',
+      'a[href*="/company/"]', '[data-testid*="company"]'
+    ]);
+    if (selectorResult) {
+      candidates.push({ name: selectorResult, frequency: 1, source: 'selector', confidence: 90 });
+    }
+
+    // Strategy 2: Meta tags
+    const metaSelectors = [
+      'meta[property="og:site_name"]',
+      'meta[name="author"]',
+      'meta[name="publisher"]'
+    ];
+    for (const selector of metaSelectors) {
+      const meta = document.querySelector(selector);
+      if (meta?.content) {
+        candidates.push({ name: meta.content.trim(), frequency: 1, source: 'meta', confidence: 80 });
+        break;
+      }
+    }
+
+    // Strategy 3: Page title (last segment)
+    const titleParts = document.title.split(/[\|\-\–]/);
+    if (titleParts.length > 1) {
+      const titleCompany = titleParts[titleParts.length - 1].trim();
+      if (titleCompany) {
+        candidates.push({ name: titleCompany, frequency: 1, source: 'title', confidence: 70 });
+      }
+    }
+
+    // Strategy 4: Context patterns (e.g., "Join [Company] team")
+    const bodyText = document.body?.textContent || '';
+    const contextCandidates = CompanyDetector.extractFromContextPatterns(bodyText);
+    candidates.push(...contextCandidates);
+
+    // Strategy 5: Frequency analysis
+    const frequencyCandidates = CompanyDetector.extractByFrequency(document);
+    candidates.push(...frequencyCandidates);
+
+    // Strategy 6: Logo alt text
+    const logos = document.querySelectorAll('img[alt*="logo"], img[src*="logo"], img[class*="logo"]');
+    for (const logo of logos) {
+      const alt = logo.alt;
+      if (alt && alt.toLowerCase().includes('logo')) {
+        const companyName = alt.replace(/logo/gi, '').trim();
+        if (companyName.length > 1) {
+          candidates.push({ name: companyName, frequency: 1, source: 'selector', confidence: 50 });
+          break;
+        }
+      }
+    }
+
+    // Use voting/scoring to select best candidate
+    return CompanyDetector.selectBestCandidate(candidates);
   }
 
   getTextFromSelectors(selectors) {
