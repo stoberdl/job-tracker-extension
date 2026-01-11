@@ -1,5 +1,6 @@
 import { BaseParser } from '../base/BaseParser';
 import { JobData } from '../../types/JobData';
+import { SalaryDetector } from '../utils/SalaryDetector';
 
 export class GlassdoorParser extends BaseParser {
   siteName = 'Glassdoor';
@@ -54,37 +55,27 @@ export class GlassdoorParser extends BaseParser {
   }
 
   private extractSalary(): string {
+    // Use SalaryDetector for robust extraction
+    const salary = SalaryDetector.extractSalaryString(document);
+    if (salary) {
+      return this.cleanText(salary);
+    }
+
+    // Fallback to selector-based extraction
     const selectors = [
       '[data-test="salary-estimate"]',
       '.salaryEstimate',
       '.SalaryEstimate',
       '[data-test="detailSalary"]',
-      '.JobDetails_salary__',
-      '.css-1xe2xww'
+      '.JobDetails_salary__'
     ];
 
-    let salary = this.extractBySelectors(selectors);
-
-    if (!salary) {
-      const salaryElements = document.querySelectorAll('[class*="salary"], [class*="Salary"]');
-      for (let i = 0; i < salaryElements.length; i++) {
-        const element = salaryElements[i];
-        if (!element) continue;
-        const text = element.textContent || '';
-        const extractedSalary = this.extractSalaryFromText(text);
-        if (extractedSalary) {
-          salary = extractedSalary;
-          break;
-        }
-      }
+    const selectorResult = this.extractBySelectors(selectors);
+    if (selectorResult) {
+      return this.cleanText(selectorResult);
     }
 
-    if (!salary) {
-      const bodyText = document.body.textContent || '';
-      salary = this.extractSalaryFromText(bodyText);
-    }
-
-    return this.cleanText(salary);
+    return '';
   }
 
   isValidJobPage(): boolean {

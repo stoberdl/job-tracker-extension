@@ -1,5 +1,6 @@
 import { BaseParser } from '../base/BaseParser';
 import { JobData } from '../../types/JobData';
+import { SalaryDetector } from '../utils/SalaryDetector';
 
 export class LinkedInParser extends BaseParser {
   siteName = 'LinkedIn';
@@ -51,35 +52,25 @@ export class LinkedInParser extends BaseParser {
   }
 
   private extractSalary(): string {
+    // Use SalaryDetector for robust extraction
+    const salary = SalaryDetector.extractSalaryString(document);
+    if (salary) {
+      return this.cleanText(salary);
+    }
+
+    // Fallback to selector-based extraction
     const selectors = [
       '[data-test-id="job-salary-info"]',
       '.job-details-preferences-and-skills__salary',
-      '.jobs-description__salary',
-      '.job-criteria__text:contains("$")'
+      '.jobs-description__salary'
     ];
 
-    let salary = this.extractBySelectors(selectors);
-
-    if (!salary) {
-      const jobCriteriaList = document.querySelectorAll('.job-criteria__text');
-      for (let i = 0; i < jobCriteriaList.length; i++) {
-        const criteria = jobCriteriaList[i];
-        if (!criteria) continue;
-        const text = criteria.textContent || '';
-        const extractedSalary = this.extractSalaryFromText(text);
-        if (extractedSalary) {
-          salary = extractedSalary;
-          break;
-        }
-      }
+    const selectorResult = this.extractBySelectors(selectors);
+    if (selectorResult) {
+      return this.cleanText(selectorResult);
     }
 
-    if (!salary) {
-      const bodyText = document.body.textContent || '';
-      salary = this.extractSalaryFromText(bodyText);
-    }
-
-    return this.cleanText(salary);
+    return '';
   }
 
   isValidJobPage(): boolean {

@@ -272,6 +272,179 @@ class CompanyDetector {
   }
 }
 
+// Salary Detection with Pattern Matching
+class SalaryDetector {
+  static salaryPatterns = [
+    // $100,000 - $150,000 per year / annually / yr
+    { pattern: /\$\s*([\d,]+(?:\.\d{2})?)\s*[-–to]+\s*\$?\s*([\d,]+(?:\.\d{2})?)\s*(?:per\s+)?(?:year|yr|annually|annual|pa|p\.a\.)/gi, period: 'yearly' },
+    // $100K - $150K (assumed yearly)
+    { pattern: /\$\s*([\d.]+)\s*k\s*[-–to]+\s*\$?\s*([\d.]+)\s*k/gi, period: 'yearly' },
+    // $100,000 - $150,000 (no period, assumed yearly if > $1000)
+    { pattern: /\$\s*([\d,]+(?:\.\d{2})?)\s*[-–to]+\s*\$?\s*([\d,]+(?:\.\d{2})?)/gi, period: 'unknown' },
+    // $50 - $75 per hour / hr / hourly
+    { pattern: /\$\s*([\d,]+(?:\.\d{2})?)\s*[-–to]+\s*\$?\s*([\d,]+(?:\.\d{2})?)\s*(?:per\s+)?(?:hour|hr|hourly)/gi, period: 'hourly' },
+    // Single value: $150,000 per year
+    { pattern: /\$\s*([\d,]+(?:\.\d{2})?)\s*(?:per\s+)?(?:year|yr|annually|annual|pa|p\.a\.)/gi, period: 'yearly' },
+    // Single value: $150K (assumed yearly)
+    { pattern: /\$\s*([\d.]+)\s*k(?:\s|$|[,.])/gi, period: 'yearly' },
+    // Single value: $50 per hour
+    { pattern: /\$\s*([\d,]+(?:\.\d{2})?)\s*(?:per\s+)?(?:hour|hr|hourly)/gi, period: 'hourly' },
+    // LinkedIn format with /yr or /hr
+    { pattern: /\$\s*([\d,]+(?:\.\d{2})?)\s*[-–]\s*\$?\s*([\d,]+(?:\.\d{2})?)\s*\/\s*(?:yr|year)/gi, period: 'yearly' },
+    { pattern: /\$\s*([\d,]+(?:\.\d{2})?)\s*[-–]\s*\$?\s*([\d,]+(?:\.\d{2})?)\s*\/\s*(?:hr|hour)/gi, period: 'hourly' },
+    // Single with /yr or /hr
+    { pattern: /\$\s*([\d,]+(?:\.\d{2})?)\s*\/\s*(?:yr|year)/gi, period: 'yearly' },
+    { pattern: /\$\s*([\d,]+(?:\.\d{2})?)\s*\/\s*(?:hr|hour)/gi, period: 'hourly' },
+  ];
+
+  static salaryKeywords = [
+    'salary', 'compensation', 'pay', 'wage', 'earning', 'income',
+    'base pay', 'base salary', 'annual salary', 'hourly rate',
+    'salary range', 'pay range', 'compensation range'
+  ];
+
+  static parseNumber(str) {
+    if (!str) return null;
+    let cleaned = str.replace(/[,\s]/g, '');
+    if (cleaned.toLowerCase().endsWith('k')) {
+      cleaned = cleaned.slice(0, -1);
+      const num = parseFloat(cleaned);
+      return isNaN(num) ? null : num * 1000;
+    }
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? null : num;
+  }
+
+  static normalizeFormat(min, max, period) {
+    if (min === null) return '';
+    const formatValue = (val) => {
+      if (val >= 1000) {
+        const k = val / 1000;
+        return k === Math.floor(k) ? `$${k}k` : `$${k.toFixed(1)}k`;
+      }
+      return `$${val}`;
+    };
+    const periodSuffix = period === 'hourly' ? '/hr' : period === 'yearly' ? '/yr' : '';
+    if (max !== null && max !== min) {
+      return `${formatValue(min)} - ${formatValue(max)}${periodSuffix}`;
+    }
+    return `${formatValue(min)}${periodSuffix}`;
+  }
+
+  static extractSalary(text) {
+    const matches = [];
+    for (const { pattern, period } of this.salaryPatterns) {
+      pattern.lastIndex = 0;
+      let match;
+      while ((match = pattern.exec(text)) !== null) {
+        const raw = match[0];
+        const value1 = this.parseNumber(match[1]);
+        const value2 = match[2] ? this.parseNumber(match[2]) : null;
+        const min = value1;
+        const max = value2 ?? value1;
+
+        let finalPeriod = period;
+        if (period === 'unknown' && min !== null) {
+          finalPeriod = min >= 1000 ? 'yearly' : min < 500 ? 'hourly' : 'unknown';
+        }
+
+        let confidence = 70;
+        if (raw.includes('/yr') || raw.includes('/hr') || raw.includes('per year') || raw.includes('per hour')) {
+          confidence = 95;
+        } else if (raw.toLowerCase().includes('k')) {
+          confidence = 85;
+        } else if (value2 !== null) {
+          confidence = 80;
+        }
+
+        const normalized = this.normalizeFormat(min, max, finalPeriod);
+        matches.push({ raw: raw.trim(), normalized, min, max, period: finalPeriod, confidence });
+      }
+    }
+
+    if (matches.length === 0) return null;
+    matches.sort((a, b) => b.confidence - a.confidence);
+    return matches[0];
+  }
+
+  static extractFromDocument(doc) {
+    const candidates = [];
+
+    // Strategy 1: Look for salary in dedicated elements
+    const salarySelectors = [
+      '[data-test-id="job-salary-info"]',
+      '[data-test="salary-estimate"]',
+      '[data-testid="salary"]',
+      '.salary-snippet',
+      '.salaryEstimate',
+      '.SalaryEstimate',
+      '.job-details-preferences-and-skills__salary',
+      '*[class*="salary"]',
+      '*[class*="Salary"]',
+      '*[class*="compensation"]'
+    ];
+
+    for (const selector of salarySelectors) {
+      try {
+        const elements = doc.querySelectorAll(selector);
+        elements.forEach(el => {
+          const text = el.textContent || '';
+          const match = this.extractSalary(text);
+          if (match) {
+            match.confidence += 10;
+            candidates.push(match);
+          }
+        });
+      } catch { continue; }
+    }
+
+    // Strategy 2: Look for salary keywords near dollar amounts
+    const bodyText = doc.body?.textContent || '';
+    const lines = bodyText.split('\n');
+    for (const line of lines) {
+      const lowerLine = line.toLowerCase();
+      const hasSalaryKeyword = this.salaryKeywords.some(kw => lowerLine.includes(kw));
+      if (hasSalaryKeyword || line.includes('$')) {
+        const match = this.extractSalary(line);
+        if (match) {
+          if (hasSalaryKeyword) match.confidence += 15;
+          candidates.push(match);
+        }
+      }
+    }
+
+    // Strategy 3: Look in job details/criteria sections
+    const detailSelectors = ['.job-criteria__text', '.job-details__content', '.jobsearch-JobMetadataHeader-item'];
+    for (const selector of detailSelectors) {
+      try {
+        const elements = doc.querySelectorAll(selector);
+        elements.forEach(el => {
+          const text = el.textContent || '';
+          if (text.includes('$')) {
+            const match = this.extractSalary(text);
+            if (match) {
+              match.confidence += 5;
+              candidates.push(match);
+            }
+          }
+        });
+      } catch { continue; }
+    }
+
+    if (candidates.length === 0) return null;
+    candidates.sort((a, b) => b.confidence - a.confidence);
+    return candidates[0];
+  }
+
+  static extractSalaryString(doc) {
+    const match = this.extractFromDocument(doc);
+    if (match) {
+      return match.confidence >= 80 ? match.normalized : match.raw;
+    }
+    return '';
+  }
+}
+
 class JobTracker {
   constructor() {
     this.init();
@@ -340,10 +513,14 @@ class SimpleJobExtractor {
       'h1[data-test-id="job-title"]'
     ]);
 
-    const salary = this.getTextFromSelectors([
-      '[data-test-id="job-salary-info"]',
-      '.job-details-preferences-and-skills__salary'
-    ]);
+    // Use SalaryDetector for robust extraction
+    let salary = SalaryDetector.extractSalaryString(document);
+    if (!salary) {
+      salary = this.getTextFromSelectors([
+        '[data-test-id="job-salary-info"]',
+        '.job-details-preferences-and-skills__salary'
+      ]);
+    }
 
     return {
       companyName: company,
@@ -399,11 +576,15 @@ class SimpleJobExtractor {
       '.job-details-header .jobTitle'
     ]);
 
-    const salary = this.getTextFromSelectors([
-      '[data-test="salary-estimate"]',
-      '.salaryEstimate',
-      '.SalaryEstimate'
-    ]);
+    // Use SalaryDetector for robust extraction
+    let salary = SalaryDetector.extractSalaryString(document);
+    if (!salary) {
+      salary = this.getTextFromSelectors([
+        '[data-test="salary-estimate"]',
+        '.salaryEstimate',
+        '.SalaryEstimate'
+      ]);
+    }
 
     return {
       companyName: company,
@@ -424,10 +605,13 @@ class SimpleJobExtractor {
     // Smart company extraction with voting
     const company = this.smartExtractCompany();
 
+    // Smart salary extraction
+    const salary = SalaryDetector.extractSalaryString(document);
+
     return {
       companyName: company,
       role: role,
-      salary: '',
+      salary: salary,
       applicationStatus: 'Submitted - Pending Response',
       dateSubmitted: new Date().toLocaleDateString('en-CA'),
       linkToJobReq: window.location.href,

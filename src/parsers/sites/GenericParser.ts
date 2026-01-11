@@ -2,6 +2,7 @@ import { BaseParser } from '../base/BaseParser';
 import { JobData } from '../../types/JobData';
 import { RoleDetector } from '../utils/RoleDetector';
 import { CompanyDetector, CompanyCandidate } from '../utils/CompanyDetector';
+import { SalaryDetector } from '../utils/SalaryDetector';
 
 export class GenericParser extends BaseParser {
   siteName = 'Generic';
@@ -138,35 +139,19 @@ export class GenericParser extends BaseParser {
   }
 
   private smartExtractSalary(): string {
-    let salary = this.extractBySelectors(this.commonSelectors.salary);
-
-    if (!salary) {
-      const salaryElements = document.querySelectorAll('*[class*="salary"], *[class*="Salary"], *[class*="compensation"], *[class*="pay"]');
-      for (let i = 0; i < salaryElements.length; i++) {
-        const element = salaryElements[i];
-        if (!element) continue;
-        const text = element.textContent || '';
-        const extractedSalary = this.extractSalaryFromText(text);
-        if (extractedSalary) {
-          salary = extractedSalary;
-          break;
-        }
-      }
+    // Use SalaryDetector for robust extraction
+    const salary = SalaryDetector.extractSalaryString(document);
+    if (salary) {
+      return salary;
     }
 
-    if (!salary) {
-      const bodyText = document.body.textContent || '';
-      const lines = bodyText.split('\n');
-      for (const line of lines) {
-        const extractedSalary = this.extractSalaryFromText(line);
-        if (extractedSalary) {
-          salary = extractedSalary;
-          break;
-        }
-      }
+    // Fallback to selector-based extraction
+    const selectorResult = this.extractBySelectors(this.commonSelectors.salary);
+    if (selectorResult) {
+      return selectorResult;
     }
 
-    return salary;
+    return '';
   }
 
   private extractFromMetaTags(): string {
