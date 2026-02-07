@@ -1,6 +1,7 @@
 import { BaseParser } from '../base/BaseParser';
 import { JobData } from '../../types/JobData';
 import { SalaryDetector } from '../utils/SalaryDetector';
+import { CompanyDetector } from '../utils/CompanyDetector';
 
 export class LinkedInParser extends BaseParser {
   siteName = 'LinkedIn';
@@ -18,22 +19,37 @@ export class LinkedInParser extends BaseParser {
   }
 
   private extractCompanyName(): string {
+    // Strategy 1: JSON-LD structured data (most reliable)
+    const jsonLdResult = CompanyDetector.extractFromJsonLd(document);
+    if (jsonLdResult) {
+      return this.cleanText(jsonLdResult.name);
+    }
+
+    // Strategy 2: LinkedIn-specific selectors
     const selectors = [
       '.topcard__org-name-link',
       '.job-details-jobs-unified-top-card__company-name',
       'a[data-control-name="job_details_topcard_company_url"]',
       '.topcard__flavor--black-link',
       '.jobs-unified-top-card__company-name',
-      '.job-details-jobs-unified-top-card__company-name a'
+      '.job-details-jobs-unified-top-card__company-name a',
+      '.jobs-company__name',
+      '[data-tracking-control-name="public_jobs_topcard-org-name"]'
     ];
 
     let companyName = this.extractBySelectors(selectors);
 
+    // Strategy 3: Company link fallback
     if (!companyName) {
       const companyLink = document.querySelector('a[href*="/company/"]');
       if (companyLink) {
         companyName = companyLink.textContent?.trim() || '';
       }
+    }
+
+    // Filter out ATS names
+    if (companyName && CompanyDetector.isAtsPlatformName(companyName)) {
+      companyName = '';
     }
 
     return this.cleanText(companyName);

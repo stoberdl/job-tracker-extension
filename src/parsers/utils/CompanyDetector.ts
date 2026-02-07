@@ -42,6 +42,31 @@ export class CompanyDetector {
     'apply now', 'submit', 'sign in', 'log in', 'register', 'similar jobs'
   ];
 
+  // ATS platform names to filter out (these are NOT company names)
+  private static atsPlatforms = new Set([
+    'greenhouse', 'lever', 'workday', 'icims', 'taleo', 'jobvite',
+    'smartrecruiters', 'breezy', 'jazz', 'jazzhr', 'bamboohr', 'bamboo',
+    'ashby', 'rippling', 'gusto', 'paylocity', 'paycom', 'adp',
+    'successfactors', 'oracle', 'workable', 'recruitee', 'pinpoint',
+    'teamtailor', 'personio', 'deel', 'remote', 'oyster', 'lattice',
+    'linkedin', 'indeed', 'glassdoor', 'ziprecruiter', 'monster',
+    'careerbuilder', 'dice', 'angellist', 'wellfound', 'ycombinator',
+    'workatastartup', 'hired', 'triplebyte', 'angel', 'powered by'
+  ]);
+
+  static isAtsPlatformName(name: string): boolean {
+    const lower = name.toLowerCase().trim();
+    // Exact match
+    if (this.atsPlatforms.has(lower)) return true;
+    // Check if name starts with or equals an ATS name
+    for (const ats of this.atsPlatforms) {
+      if (lower === ats || lower === `${ats} logo` || lower === `${ats} careers`) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   static extractFromContextPatterns(text: string): CompanyCandidate[] {
     const candidates: CompanyCandidate[] = [];
     const seenNames = new Set<string>();
@@ -133,11 +158,85 @@ export class CompanyDetector {
     return candidates.slice(0, 10);  // Top 10 candidates
   }
 
+  static extractFromJsonLd(doc: Document): CompanyCandidate | null {
+    const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
+    for (let i = 0; i < scripts.length; i++) {
+      const script = scripts[i];
+      if (!script) continue;
+      try {
+        const data = JSON.parse(script.textContent || '');
+        // Handle array of JSON-LD objects
+        const items = Array.isArray(data) ? data : [data];
+        for (const item of items) {
+          // JobPosting schema
+          if (item['@type'] === 'JobPosting' && item.hiringOrganization) {
+            const org = item.hiringOrganization;
+            const name = typeof org === 'string' ? org : org.name;
+            if (name && !this.isAtsPlatformName(name)) {
+              return { name, frequency: 1, source: 'meta', confidence: 95 };
+            }
+          }
+          // Organization schema
+          if (item['@type'] === 'Organization' && item.name) {
+            if (!this.isAtsPlatformName(item.name)) {
+              return { name: item.name, frequency: 1, source: 'meta', confidence: 90 };
+            }
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  }
+
+  static extractFromSubdomain(url: string): CompanyCandidate | null {
+    try {
+      const hostname = new URL(url).hostname;
+      // Patterns like: companyname.greenhouse.io, companyname.lever.co
+      const atsSubdomainPatterns = [
+        /^([a-z0-9-]+)\.greenhouse\.io$/i,
+        /^([a-z0-9-]+)\.lever\.co$/i,
+        /^([a-z0-9-]+)\.ashbyhq\.com$/i,
+        /^([a-z0-9-]+)\.workable\.com$/i,
+        /^([a-z0-9-]+)\.recruitee\.com$/i,
+        /^([a-z0-9-]+)\.breezy\.hr$/i,
+        /^([a-z0-9-]+)\.bamboohr\.com$/i,
+        /^([a-z0-9-]+)\.pinpointhq\.com$/i,
+        /^([a-z0-9-]+)\.teamtailor\.com$/i,
+        /^jobs\.([a-z0-9-]+)\.com$/i
+      ];
+      for (const pattern of atsSubdomainPatterns) {
+        const match = hostname.match(pattern);
+        if (match && match[1]) {
+          const subdomain = match[1];
+          // Skip generic subdomains
+          if (['www', 'jobs', 'careers', 'boards', 'apply'].includes(subdomain)) continue;
+          // Convert to readable name (my-company -> My Company)
+          const name = subdomain
+            .split('-')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+          if (!this.isAtsPlatformName(name)) {
+            return { name, frequency: 1, source: 'url', confidence: 75 };
+          }
+        }
+      }
+    } catch {
+      // Invalid URL
+    }
+    return null;
+  }
+
   static selectBestCandidate(candidates: CompanyCandidate[]): string {
     if (candidates.length === 0) return '';
 
+    // Filter out ATS platform names
+    const filtered = candidates.filter(c => !this.isAtsPlatformName(c.name));
+    if (filtered.length === 0) return '';
+
     // Score each candidate
-    const scored = candidates.map(candidate => {
+    const scored = filtered.map(candidate => {
       let score = candidate.confidence;
 
       // Boost for source reliability

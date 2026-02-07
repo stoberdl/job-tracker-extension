@@ -1,5 +1,6 @@
 import { BaseParser } from '../base/BaseParser';
 import { JobData } from '../../types/JobData';
+import { CompanyDetector } from '../utils/CompanyDetector';
 
 export class AngelListParser extends BaseParser {
   siteName = 'AngelList';
@@ -17,17 +18,28 @@ export class AngelListParser extends BaseParser {
   }
 
   private extractCompanyName(): string {
+    // Strategy 1: JSON-LD structured data (most reliable)
+    const jsonLdResult = CompanyDetector.extractFromJsonLd(document);
+    if (jsonLdResult) {
+      return this.cleanText(jsonLdResult.name);
+    }
+
+    // Strategy 2: AngelList/Wellfound-specific selectors
     const selectors = [
       '[data-test="StartupLink"]',
+      '[data-test="CompanyName"]',
       '.company-name',
       '.startup-link',
       'a[href*="/company/"]',
       '.job-detail-header .company',
-      '.JobDetail_companyName__'
+      '.JobDetail_companyName__',
+      '[class*="CompanyName"]',
+      '[class*="startup-name"]'
     ];
 
     let companyName = this.extractBySelectors(selectors);
 
+    // Strategy 3: Company/startup link fallback
     if (!companyName) {
       const companyLink = document.querySelector('a[href*="/company/"], a[href*="/startup/"]');
       if (companyLink) {
@@ -35,8 +47,17 @@ export class AngelListParser extends BaseParser {
       }
     }
 
+    // Strategy 4: Page title
     if (!companyName) {
-      companyName = this.extractFromPageTitle();
+      const titleResult = this.extractFromPageTitle();
+      if (titleResult && !CompanyDetector.isAtsPlatformName(titleResult)) {
+        companyName = titleResult;
+      }
+    }
+
+    // Filter out ATS names
+    if (companyName && CompanyDetector.isAtsPlatformName(companyName)) {
+      companyName = '';
     }
 
     return this.cleanText(companyName);

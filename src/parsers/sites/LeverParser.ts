@@ -1,5 +1,6 @@
 import { BaseParser } from '../base/BaseParser';
 import { JobData } from '../../types/JobData';
+import { CompanyDetector } from '../utils/CompanyDetector';
 
 export class LeverParser extends BaseParser {
   siteName = 'Lever';
@@ -17,23 +18,54 @@ export class LeverParser extends BaseParser {
   }
 
   private extractCompanyName(): string {
+    // Strategy 1: JSON-LD structured data (most reliable)
+    const jsonLdResult = CompanyDetector.extractFromJsonLd(document);
+    if (jsonLdResult) {
+      return this.cleanText(jsonLdResult.name);
+    }
+
+    // Strategy 2: Lever-specific selectors
     const selectors = [
-      '.company-name',
+      '.main-header-logo a',
+      '.main-header a[href="/"]',
+      '[data-qa="company-name"]',
+      '.posting-headline .company-name',
       '.posting-header .company',
-      'a[href*="/company/"]',
-      '.posting-headline .company'
+      '.company-name',
+      'header .company',
+      '.lever-logo-link'
     ];
 
     let companyName = this.extractBySelectors(selectors);
 
+    // Strategy 3: Extract from URL subdomain (companyname.lever.co)
     if (!companyName) {
-      companyName = this.extractFromPageTitle();
+      const subdomainResult = CompanyDetector.extractFromSubdomain(window.location.href);
+      if (subdomainResult) {
+        companyName = subdomainResult.name;
+      }
     }
 
+    // Strategy 4: Page title (often "Job Title - Company")
     if (!companyName) {
-      const titleParts = document.title.split(' - ');
+      const title = document.title;
+      const atMatch = title.match(/(?:at|@)\s+([^|\-–]+)/i);
+      if (atMatch && atMatch[1]) {
+        const extracted = atMatch[1].trim();
+        if (!CompanyDetector.isAtsPlatformName(extracted)) {
+          companyName = extracted;
+        }
+      }
+    }
+
+    // Strategy 5: Last part of title
+    if (!companyName) {
+      const titleParts = document.title.split(/[\|\-–]/);
       if (titleParts.length > 1) {
-        companyName = titleParts[titleParts.length - 1] || '';
+        const lastPart = titleParts[titleParts.length - 1]?.trim() || '';
+        if (lastPart && !CompanyDetector.isAtsPlatformName(lastPart)) {
+          companyName = lastPart;
+        }
       }
     }
 

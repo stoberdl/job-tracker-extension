@@ -1,5 +1,6 @@
 import { BaseParser } from '../base/BaseParser';
 import { JobData } from '../../types/JobData';
+import { CompanyDetector } from '../utils/CompanyDetector';
 
 export class IndeedParser extends BaseParser {
   siteName = 'Indeed';
@@ -17,22 +18,37 @@ export class IndeedParser extends BaseParser {
   }
 
   private extractCompanyName(): string {
+    // Strategy 1: JSON-LD structured data (most reliable)
+    const jsonLdResult = CompanyDetector.extractFromJsonLd(document);
+    if (jsonLdResult) {
+      return this.cleanText(jsonLdResult.name);
+    }
+
+    // Strategy 2: Indeed-specific selectors
     const selectors = [
       '[data-testid="company-name"]',
+      '[data-testid="inlineHeader-companyName"]',
       '.jobsearch-InlineCompanyRating',
       '.jobsearch-CompanyInfoContainer a',
       '.jobsearch-JobInfoHeader-subtitle a',
       'a[data-jk][href*="cmp"]',
-      '.icl-u-lg-mr--sm'
+      '.icl-u-lg-mr--sm',
+      '[data-company-name="true"]'
     ];
 
     let companyName = this.extractBySelectors(selectors);
 
+    // Strategy 3: Company link fallback
     if (!companyName) {
       const companyLink = document.querySelector('a[href*="/cmp/"]');
       if (companyLink) {
         companyName = companyLink.textContent?.trim() || '';
       }
+    }
+
+    // Filter out ATS names
+    if (companyName && CompanyDetector.isAtsPlatformName(companyName)) {
+      companyName = '';
     }
 
     return this.cleanText(companyName);

@@ -22,9 +22,21 @@ export class GenericParser extends BaseParser {
   private smartExtractCompany(): string {
     const candidates: CompanyCandidate[] = [];
 
-    // Strategy 1: CSS selectors (high confidence)
+    // Strategy 1: JSON-LD structured data (HIGHEST confidence)
+    const jsonLdResult = CompanyDetector.extractFromJsonLd(document);
+    if (jsonLdResult) {
+      candidates.push(jsonLdResult);
+    }
+
+    // Strategy 2: URL subdomain for known ATS platforms
+    const subdomainResult = CompanyDetector.extractFromSubdomain(window.location.href);
+    if (subdomainResult) {
+      candidates.push(subdomainResult);
+    }
+
+    // Strategy 3: CSS selectors (high confidence)
     const selectorResult = this.extractBySelectors(this.commonSelectors.companyName);
-    if (selectorResult) {
+    if (selectorResult && !CompanyDetector.isAtsPlatformName(selectorResult)) {
       candidates.push({
         name: selectorResult,
         frequency: 1,
@@ -33,9 +45,9 @@ export class GenericParser extends BaseParser {
       });
     }
 
-    // Strategy 2: Meta tags
+    // Strategy 4: Meta tags
     const metaResult = this.extractFromMetaTags();
-    if (metaResult) {
+    if (metaResult && !CompanyDetector.isAtsPlatformName(metaResult)) {
       candidates.push({
         name: metaResult,
         frequency: 1,
@@ -44,9 +56,9 @@ export class GenericParser extends BaseParser {
       });
     }
 
-    // Strategy 3: Page title
+    // Strategy 5: Page title
     const titleResult = this.extractFromPageTitle();
-    if (titleResult) {
+    if (titleResult && !CompanyDetector.isAtsPlatformName(titleResult)) {
       candidates.push({
         name: titleResult,
         frequency: 1,
@@ -55,16 +67,16 @@ export class GenericParser extends BaseParser {
       });
     }
 
-    // Strategy 4: Context patterns (e.g., "Join [Company] team")
+    // Strategy 6: Context patterns (e.g., "Join [Company] team")
     const bodyText = document.body?.textContent || '';
     const contextCandidates = CompanyDetector.extractFromContextPatterns(bodyText);
     candidates.push(...contextCandidates);
 
-    // Strategy 5: Frequency analysis
+    // Strategy 7: Frequency analysis
     const frequencyCandidates = CompanyDetector.extractByFrequency(document);
     candidates.push(...frequencyCandidates);
 
-    // Strategy 6: Logo alt text (fallback)
+    // Strategy 8: Logo alt text (fallback)
     const logoResult = this.extractFromLogoAlt();
     if (logoResult) {
       candidates.push({
@@ -75,9 +87,9 @@ export class GenericParser extends BaseParser {
       });
     }
 
-    // Strategy 7: URL domain (last resort)
+    // Strategy 9: URL domain (last resort)
     const urlResult = this.extractFromURL();
-    if (urlResult) {
+    if (urlResult && !CompanyDetector.isAtsPlatformName(urlResult)) {
       candidates.push({
         name: urlResult,
         frequency: 1,
@@ -86,9 +98,9 @@ export class GenericParser extends BaseParser {
       });
     }
 
-    // Strategy 8: Breadcrumbs
+    // Strategy 10: Breadcrumbs
     const breadcrumbResult = this.extractFromBreadcrumbs();
-    if (breadcrumbResult) {
+    if (breadcrumbResult && !CompanyDetector.isAtsPlatformName(breadcrumbResult)) {
       candidates.push({
         name: breadcrumbResult,
         frequency: 1,
@@ -172,13 +184,22 @@ export class GenericParser extends BaseParser {
   }
 
   private extractFromLogoAlt(): string {
-    const logos = document.querySelectorAll('img[alt*="logo"], img[src*="logo"], img[class*="logo"]');
+    const logos = document.querySelectorAll('img[alt*="logo"], img[src*="logo"], img[class*="logo"], img[alt*="Logo"]');
     for (let i = 0; i < logos.length; i++) {
       const logo = logos[i];
       const alt = (logo as HTMLImageElement).alt;
-      if (alt && alt.toLowerCase().includes('logo')) {
-        const companyName = alt.replace(/logo/gi, '').trim();
-        if (companyName.length > 1) {
+      if (alt) {
+        // Clean up common alt text patterns
+        let companyName = alt
+          .replace(/\s*logo\s*/gi, ' ')
+          .replace(/\s*icon\s*/gi, ' ')
+          .replace(/\s*image\s*/gi, ' ')
+          .replace(/powered\s+by\s*/gi, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        // Skip if empty, too short, or is an ATS platform name
+        if (companyName.length > 1 && !CompanyDetector.isAtsPlatformName(companyName)) {
           return companyName;
         }
       }

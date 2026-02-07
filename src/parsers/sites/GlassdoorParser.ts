@@ -1,6 +1,7 @@
 import { BaseParser } from '../base/BaseParser';
 import { JobData } from '../../types/JobData';
 import { SalaryDetector } from '../utils/SalaryDetector';
+import { CompanyDetector } from '../utils/CompanyDetector';
 
 export class GlassdoorParser extends BaseParser {
   siteName = 'Glassdoor';
@@ -18,17 +19,27 @@ export class GlassdoorParser extends BaseParser {
   }
 
   private extractCompanyName(): string {
+    // Strategy 1: JSON-LD structured data (most reliable)
+    const jsonLdResult = CompanyDetector.extractFromJsonLd(document);
+    if (jsonLdResult) {
+      return this.cleanText(jsonLdResult.name);
+    }
+
+    // Strategy 2: Glassdoor-specific selectors
     const selectors = [
       '[data-test="employer-name"]',
+      '[data-test="employerName"]',
       '.employerName',
       '.job-details-header .employerName',
       'a[data-test="employer-name"]',
       '.JobDetails_companyName__',
-      '.EmployerProfile_profileContainer .employerName'
+      '.EmployerProfile_profileContainer .employerName',
+      '[class*="EmployerProfile"] [class*="name"]'
     ];
 
     let companyName = this.extractBySelectors(selectors);
 
+    // Strategy 3: Company header link fallback
     if (!companyName) {
       const companyHeader = document.querySelector('.job-details-header');
       if (companyHeader) {
@@ -37,6 +48,11 @@ export class GlassdoorParser extends BaseParser {
           companyName = companyLink.textContent?.trim() || '';
         }
       }
+    }
+
+    // Filter out ATS names
+    if (companyName && CompanyDetector.isAtsPlatformName(companyName)) {
+      companyName = '';
     }
 
     return this.cleanText(companyName);
